@@ -6,14 +6,15 @@
 #include <iostream>
 #include <vector>
 
-void sort_part(std::vector<int>& array, std::vector<int>& buff, size_t lo, size_t size) {
+template<typename IsLess>
+void sort_part(std::vector<int>& array, std::vector<int>& buff, size_t lo, size_t size, IsLess is_less) {
     size_t mid = std::min(lo + size, array.size());
     size_t hi = std::min(mid + size, array.size());
     size_t t = 0;
     size_t i = lo;
     size_t j = mid;
     while (i < mid & j < hi) {
-        if (array[i] <= array[j]) {
+        if (is_less(array[i], array[j])) {
             buff[t++] = array[i++];
         } else {
             buff[t++] = array[j++];
@@ -28,41 +29,51 @@ void sort_part(std::vector<int>& array, std::vector<int>& buff, size_t lo, size_
     std::copy(buff.begin(), buff.begin() + (hi - lo), array.begin() + lo);
 }
 
-void merge_sort(std::vector<int>& array, size_t k) {
-    if (k <= 1) {
-        return;
-    }
-    
+template<typename IsLess>
+void merge_sort(std::vector<int>& array, IsLess is_less) {
     size_t size;
-    for (size = 1; size < 2 * k; size *= 2) {
-        std::vector<int> target(2 * size);
+    for (size = 1; size < array.size(); size *= 2) {
+        std::vector<int> buff(2 * size);
         
         for (size_t lo = 0; lo < array.size(); lo += 2 * size) {
-            sort_part(array, target, lo, size);
+            sort_part(array, buff, lo, size, is_less);
         }
     }
-    
-    size /= 2;
-    std::vector<int> target(2 * size);
-    for (size_t lo = size; lo < array.size(); lo += 2 * size) {
-        sort_part(array, target, lo, size);
-    }
-    
 }
 
 int main(int argc, const char * argv[]) {
     size_t n, k;
     std::cin >> n;
     std::cin >> k;
-    std::vector<int> a(n);
-    for (size_t i = 0; i < n; i++) {
-        std::cin >> a[i];
+    
+    size_t i = 0;
+    std::vector<int> a;
+    a.reserve(2 * k);
+    for (; i < n && i < k; ++i) {
+        int num;
+        std::cin >> num;
+        a.push_back(num);
     }
-
-    merge_sort(a, k);
-    for (int i : a) {
-        std::cout << i << ' ';
-    }
+    
+    while (true) {
+        for (size_t j = 0; j < k && i < n; ++j, ++i) {
+            int num;
+            std::cin >> num;
+            a.push_back(num);
+        }
+        merge_sort(a, std::less<int>());
+        for (size_t j = 0; j < k && j < a.size(); ++j) {
+            std::cout << a[j] << ' ';
+        }
+        if (i == n) {
+            for (size_t j = k; j < a.size(); ++j) {
+                std::cout << a[j] << ' ';
+            }
+            break;
+        }
+        std::copy(a.begin() + k, a.end(), a.begin());
+        a.resize(k);
+    };
     
     return 0;
 }
