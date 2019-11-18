@@ -1,0 +1,192 @@
+/*
+ В одной военной части решили построить в одну шеренгу по росту. Т.к. часть была далеко не образцовая, то солдаты часто приходили не вовремя, а то их и вовсе приходилось выгонять из шеренги за плохо начищенные сапоги. Однако солдаты в процессе прихода и ухода должны были всегда быть выстроены по росту – сначала самые высокие, а в конце – самые низкие. За расстановку солдат отвечал прапорщик, который заметил интересную особенность – все солдаты в части разного роста.
+ Ваша задача состоит в том, чтобы помочь прапорщику правильно расставлять солдат, а именно для каждого приходящего солдата указывать, перед каким солдатом в строе он должен становится. Требуемая скорость выполнения команды - O(log n) в среднем.
+ В реализации используйте декартовы деревья.
+ */
+
+#include <iostream>
+#include <vector>
+#include <stack>
+
+struct Node {
+    Node(int key, int priority): key(key), priority(priority), left(nullptr), right(nullptr), tree_size(1) {
+    }
+    
+    int key;
+    int priority;
+    Node* left;
+    Node* right;
+    size_t tree_size;
+};
+
+void update_size(Node* node) {
+    if (!node)
+        return;
+    node->tree_size = 1;
+    if (node->left)
+        node->tree_size += node->left->tree_size;
+    if (node->right)
+        node->tree_size += node->right->tree_size;
+}
+
+void split(Node* node, int key, Node*& left, Node*& right) {
+    if (!node) {
+        left = right = nullptr;
+    } else if (node->key >= key) {
+        split(node->right, key, node->right, right);
+        left = node;
+        update_size(left);
+    } else {
+        split(node->left, key, left, node->left);
+        right = node;
+        update_size(right);
+    }
+}
+
+Node* merge(Node* left, Node* right) {
+    if (!left)
+        return right;
+    if (!right)
+        return left;
+        
+    if (left->priority > right->priority) {
+        left->right = merge(left->right, right);
+        update_size(left);
+        return left;
+    } else {
+        right->left = merge(left, right->left);
+        update_size(right);
+        return right;
+    }
+}
+
+void delete_subtree(Node* node) {
+    if (!node)
+        return;
+    delete_subtree(node->left);
+    delete_subtree(node->right);
+    delete node;
+}
+
+    
+class Treap {
+public:
+    size_t add(int key) {
+        int priority = rand();
+        Node* new_node = new Node(key, priority);
+        
+        if (!root) {
+            root = new_node;
+            return 0;
+        }
+        
+        Node** cur_p = &root;
+        Node* current = root;
+        std::stack<Node*> path;
+        size_t cur_idx = current->left ? current->left->tree_size : 0;
+        while (current && current->priority > priority) {
+            path.push(current);
+            if (key > current->key) {
+                cur_p = &current->left;
+                current = *cur_p;
+                if (current) {
+                    --cur_idx;
+                    if (current->right)
+                        cur_idx -= current->right->tree_size;
+                }
+            } else {
+                cur_p = &current->right;
+                current = *cur_p;
+                ++cur_idx;
+                if (current && current->left) {
+                    cur_idx += current->left->tree_size;
+                }
+            }
+        }
+        
+        if (current && current->left) {
+            cur_idx -= current->left->tree_size;
+        }
+        *cur_p = new_node;
+        split(current, key, new_node->left, new_node->right);
+
+        update_size(new_node);
+        while (!path.empty()) {
+            update_size(path.top());
+            path.pop();
+        }
+        
+        if (new_node->left) {
+            cur_idx += new_node->left->tree_size;
+        }
+        return cur_idx;
+    }
+    
+    void remove_k(size_t k) {
+        Node* current = root;
+        Node** cur_p = &root;
+        size_t cur_idx = current->left ? current->left->tree_size : 0;
+        std::stack<Node*> path;
+        while (cur_idx != k) {
+            path.push(current);
+            if (current->left && cur_idx > k) {
+                cur_p = &current->left;
+                current = *cur_p;
+                --cur_idx;
+                if (current->right)
+                    cur_idx -= current->right->tree_size;
+            } else {
+                cur_p = &current->right;
+                current = *cur_p;
+                ++cur_idx;
+                if (current->left) {
+                    cur_idx += current->left->tree_size;
+                }
+            }
+        }
+        *cur_p = merge(current->left, current->right);
+        
+        while (!path.empty()) {
+            update_size(path.top());
+            path.pop();
+        }
+        
+        delete current;
+    }
+    
+    ~Treap() {
+        delete_subtree(root);
+    }
+    
+private:
+    Node* root = nullptr;
+};
+
+struct Cmd {
+    int command;
+    int value;
+};
+
+int main(int argc, const char * argv[]) {
+    srand(24);
+    size_t N;
+    std::cin >> N;
+    
+    std::vector<Cmd> commands(N);
+
+    for (size_t i = 0; i < N; ++i) {
+        std::cin >> commands[i].command;
+        std::cin >> commands[i].value;
+    }
+    
+    Treap treap;
+    for (Cmd& cmd: commands) {
+        if (cmd.command == 1) {
+            size_t idx = treap.add(cmd.value);
+            std::cout << idx << std::endl;
+        } else {
+            treap.remove_k(cmd.value);
+        }
+    }
+    return 0;
+}
