@@ -6,7 +6,6 @@
 
 #include <iostream>
 #include <vector>
-#include <stack>
 
 struct Node {
     Node(int key, int priority): key(key), priority(priority), left(nullptr), right(nullptr), tree_size(1) {
@@ -82,10 +81,9 @@ public:
         
         Node** cur_p = &root;
         Node* current = root;
-        std::stack<Node*> path;
         size_t cur_idx = current->left ? current->left->tree_size : 0;
         while (current && current->priority > priority) {
-            path.push(current);
+            current->tree_size += 1;
             if (key > current->key) {
                 cur_p = &current->left;
                 current = *cur_p;
@@ -111,10 +109,6 @@ public:
         split(current, key, new_node->left, new_node->right);
 
         update_size(new_node);
-        while (!path.empty()) {
-            update_size(path.top());
-            path.pop();
-        }
         
         if (new_node->left) {
             cur_idx += new_node->left->tree_size;
@@ -126,9 +120,8 @@ public:
         Node* current = root;
         Node** cur_p = &root;
         size_t cur_idx = current->left ? current->left->tree_size : 0;
-        std::stack<Node*> path;
         while (cur_idx != k) {
-            path.push(current);
+            current->tree_size -= 1;
             if (current->left && cur_idx > k) {
                 cur_p = &current->left;
                 current = *cur_p;
@@ -145,11 +138,6 @@ public:
             }
         }
         *cur_p = merge(current->left, current->right);
-        
-        while (!path.empty()) {
-            update_size(path.top());
-            path.pop();
-        }
         
         delete current;
     }
