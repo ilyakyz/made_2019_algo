@@ -4,12 +4,13 @@
  */
 
 #include <iostream>
+#include <stack>
+#include <functional>
 
 struct Node {
-    explicit Node(int value, Node* parent) : value(value), parent(parent), left(nullptr), right(nullptr) {}
+    explicit Node(int value) : value(value), left(nullptr), right(nullptr) {}
     
     int value;
-    Node* parent;
     Node* left;
     Node* right;
 };
@@ -18,7 +19,7 @@ class Tree {
 public:
     void add(int value) {
         if (!root) {
-            root = new Node(value, nullptr);
+            root = new Node(value);
             return;
         }
         Node* current = root;
@@ -28,7 +29,7 @@ public:
                     current = current->left;
                 }
                 else {
-                    current->left = new Node(value, current);
+                    current->left = new Node(value);
                     break;
                 }
             } else {
@@ -36,68 +37,43 @@ public:
                     current = current->right;
                 }
                 else {
-                    current->right = new Node(value, current);
+                    current->right = new Node(value);
                     break;
                 }
             }
         }
     }
     
-    void print_inorder() const {
+    void inorder_traversal(std::function<void (Node*)>&& func) {
         if (!root) {
             return;
         }
         Node* current = root;
-        while (current->left) {
+
+        std::stack<Node*> backpath;
+        
+        while (current) {
+            backpath.push(current);
             current = current->left;
         }
-        bool first = true;
-        while (current) {
-            if (!first) {
-                std::cout << ' ';
-            }
-            first = false;
-            std::cout << current -> value;
-            if (current -> right) {
-                current = current->right;
-                while (current->left) {
+        
+        while (!backpath.empty()) {
+            current = backpath.top();
+            backpath.pop();
+            Node* right = current->right;
+            func(current);
+            if (right) {
+                current = right;
+                while (current) {
+                    backpath.push(current);
                     current = current->left;
                 }
-            } else {
-                while (current->parent && current->parent->right == current) {
-                    current = current->parent;
-                }
-                current = current->parent;
             }
         }
     }
     
-    // delete post order
     ~Tree() {
-        if (!root) {
-            return;
-        }
-        Node* current = root;
-        while (current->left) {
-            current = current->left;
-        }
-        while (current) {
-            if (current -> right) {
-                current = current->right;
-                while (current->left) {
-                    current = current->left;
-                }
-            } else {
-                while (current->parent && current->parent->right == current) {
-                    Node* to_del = current;
-                    current = current->parent;
-                    delete to_del;
-                }
-                Node* to_del = current;
-                current = current->parent;
-                delete to_del;
-            }
-        }
+        inorder_traversal([](Node* node) {delete node;});
     }
 private:
     Node* root = nullptr;
@@ -114,6 +90,14 @@ int main(int argc, const char * argv[]) {
         tree.add(value);
     }
     
-    tree.print_inorder();
+    bool first = true;
+    tree.inorder_traversal([&first](Node* node) {
+        if (!first) {
+            std::cout << ' ';
+        }
+        first = false;
+        std::cout << node->value;
+        
+    });
     return 0;
 }
