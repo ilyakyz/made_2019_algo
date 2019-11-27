@@ -7,7 +7,7 @@
 #include <vector>
 #include <utility>
 
-size_t calc_hash(const std::string& str, uint32_t a, size_t m) {
+size_t calc_hash(const std::string& str, size_t m, uint32_t a) {
     size_t hash = 0;
     for (char c: str) {
         hash = (hash * a + c) % m;
@@ -15,30 +15,33 @@ size_t calc_hash(const std::string& str, uint32_t a, size_t m) {
     return hash;
 }
 
-size_t calc_odd_hash(const std::string& str, uint32_t a, size_t m) {
-    return (calc_hash(str, a, m) * 2 + 1) % m;
+size_t calc_hash1(const std::string& str, size_t m) {
+    return calc_hash(str, m, 3);
 }
 
-const std::string DELETED = "-";
+size_t calc_odd_hash(const std::string& str, size_t m) {
+    return (calc_hash(str, m, 5) * 2 + 1) % m;
+}
 
+template<typename T, size_t(*hash1_func)(const T&, size_t), size_t(*hash2_func)(const T&, size_t)>
 class HashSet {
 public:
-    HashSet(size_t size=8): data(size), added(0) {
+    HashSet(T empty, T deleted, size_t size=8): empty(empty), deleted(deleted), data(size, empty), added(0) {
     };
     
-    bool find(const std::string& str) const {
+    bool find(const T& elem) const {
         size_t pos = 0;
-        return find(str, pos);
+        return find(elem, pos);
     }
     
-    bool add(const std::string& str) {
+    bool add(const T& elem) {
         size_t pos = 0;
         
-        if (find(str, pos)) {
+        if (find(elem, pos)) {
             return false;
         }
         
-        data[pos] = str;
+        data[pos] = elem;
         ++added;
         
         if (4 * added >= 3 * data.size()) {
@@ -48,29 +51,28 @@ public:
         return true;
     }
     
-    bool remove(const std::string& str) {
+    bool remove(const T& elem) {
         size_t pos = 0;
         
-        if (!find(str, pos)) {
+        if (!find(elem, pos)) {
             return false;
         }
         
-        data[pos] = DELETED;
+        data[pos] = deleted;
         return true;
     }
     
 private:
-    bool find(const std::string& str, size_t& pos) const {
-        size_t hash1 = calc_hash(str, a1, data.size());
-        pos = hash1;
+    bool find(const T& elem, size_t& pos) const {
+        pos = hash1_func(elem, data.size());
         
         size_t hash2 = 0;
-        if (!data[pos].empty()) {
-            hash2 = calc_odd_hash(str, a2, data.size());
+        if (data[pos] != empty) {
+            hash2 = hash2_func(elem, data.size());
         }
         
-        while (!data[pos].empty()) {
-            if (data[pos] == str) {
+        while (data[pos] != empty) {
+            if (data[pos] == elem) {
                 return true;
             }
             pos = (pos + hash2) % data.size();
@@ -78,21 +80,19 @@ private:
         return false;
     }
     
-    
     void reallocate() {
-        HashSet tmp(2*data.size());
-        for (const std::string& str: data) {
-            if (!str.empty() && str != DELETED) {
-                tmp.add(str);
+        HashSet tmp(empty, deleted, 2*data.size());
+        for (const T& elem: data) {
+            if (elem != empty && elem != deleted) {
+                tmp.add(elem);
             }
         }
         std::swap(*this, tmp);
     }
     
-    const static uint32_t a1 = 3;
-    const static uint32_t a2 = 5;
-    
-    std::vector<std::string> data;
+    T empty;
+    T deleted;
+    std::vector<T> data;
     size_t added;
 };
 
@@ -100,7 +100,7 @@ private:
 int main(int argc, const char * argv[]) {
     std::vector<std::pair<char, std::string>> requests;
     
-    HashSet hash_set;
+    HashSet<std::string, calc_hash1, calc_odd_hash> hash_set("", "-");
     
     while (!std::cin.eof()) {
         std::pair<char, std::string> request;
