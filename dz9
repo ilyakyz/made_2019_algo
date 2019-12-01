@@ -1,0 +1,227 @@
+/*
+ A. Алгоритм сжатия данных Хаффмана
+ */
+
+#include <iostream>
+#include <vector>
+#include <algorithm>
+#include "Huffman.h"
+
+typedef unsigned char byte;
+
+struct Node {
+    byte value;
+    int count;
+    Node* left;
+    Node* right;
+    
+    Node(byte value, int count): value(value), count(count), left(nullptr), right(nullptr) {}
+    
+    Node(Node* left, Node* right): value(0), count(left->count + right->count), left(left), right(right) {}
+};
+
+
+template<typename T, bool(*cmp)(T left, T right)>
+class BinaryHeap {
+    std::vector<T> data;
+
+    void sift_up(size_t index) {
+        if (index == 0) return;
+        size_t parent = (index - 1) / 2;
+        if (cmp(data[parent], data[index])) {
+            std::swap(data[index], data[parent]);
+        }
+        sift_up(parent);
+    }
+    
+    void sift_down(size_t index) {
+        size_t left = 2 * index + 1;
+        if (left >= data.size()) return;
+        size_t max_child = left;
+        size_t right = 2 * index + 2;
+        if (right < data.size() && cmp(data[left], data[right])) {
+            max_child = right;
+        }
+        if (cmp(data[index], data[max_child])) {
+            std::swap(data[index], data[max_child]);
+            sift_down(max_child);
+        }
+    }
+
+public:
+    void push(T value) {
+        data.push_back(value);
+        sift_up(data.size() - 1);
+    }
+    
+    T top() {
+        return data[0];
+    }
+    
+    void pop() {
+        data[0] = data.back();
+        data.pop_back();
+        sift_down(0);
+    }
+    
+    bool empty() {
+        return data.empty();
+    }
+};
+
+bool cmp(Node* left, Node* right) {
+    return left->count > right->count;
+}
+
+
+Node* build_tree(const std::vector<byte>& data) {
+    std::vector<int> counts(256, 0);
+    for (byte symbool: data)
+        ++counts[symbool];
+    
+    BinaryHeap<Node*, cmp> heap;
+    for (int b = 0; b < 256; ++b) {
+        if (counts[b])
+            heap.push(new Node(b, counts[b]));
+    }
+    
+    Node* first;
+    while(true) {
+        first = heap.top();
+        heap.pop();
+        if (heap.empty())
+            break;
+        Node* second = heap.top();
+        heap.pop();
+        heap.push(new Node(first, second));
+    }
+    return first;
+}
+
+void calc_codes(Node* node, std::vector<bool> code, std::vector<std::vector<bool>>& codes) {
+    if (!node->left) {
+        codes[node->value] = code;
+        return;
+    }
+    std::vector<bool> right = code;
+    code.push_back(0);
+    right.push_back(1);
+    calc_codes(node->left, code, codes);
+    calc_codes(node->right, right, codes);
+}
+
+void save_tree(Node* node, std::vector<bool>& result) {
+    if (!node->left) {
+        result.push_back(1);
+        byte value = node->value;
+        for (int i = 0; i < 8; ++i) {
+            result.push_back(value & 1);
+            value >>= 1;
+        }
+    }
+    else {
+        result.push_back(0);
+        save_tree(node->left, result);
+        save_tree(node->right, result);
+    }
+}
+
+Node* read_tree(const std::vector<bool>& input, size_t& position) {
+    if (input[position++] == 1) {
+        byte value = 0;
+        for (int i = 0; i < 8; ++i) {
+            value |= input[position++] << i;
+        }
+        
+        return new Node(value, 0);
+    }
+    else {
+        Node* left = read_tree(input, position);
+        Node* right = read_tree(input, position);
+        return new Node(left, right);
+    }
+}
+
+byte decode_byte(const std::vector<bool>& encoded, size_t& position, Node* tree) {
+    if (!tree->left) {
+        return tree->value;
+    }
+    if (encoded[position++] == 0) {
+        return decode_byte(encoded, position, tree->left);
+    } else {
+        return decode_byte(encoded, position, tree->right);
+    }
+}
+
+void delete_tree(Node* tree) {
+    if (tree == nullptr)
+        return;
+    delete_tree(tree->left);
+    delete_tree(tree->right);
+    delete tree;
+}
+
+std::vector<bool> encode(const std::vector<byte>& data) {
+    Node* tree = build_tree(data);
+    std::vector<std::vector<bool>> codes(256);
+    calc_codes(tree, std::vector<bool>(), codes);
+    
+    std::vector<bool> encoded;
+    save_tree(tree, encoded);
+    
+    delete_tree(tree);
+    
+    for (byte b: data) {
+        std::vector<bool>& code = codes[b];
+        encoded.insert(encoded.end(), code.begin(), code.end());
+    }
+    return encoded;
+}
+
+std::vector<byte> decode(const std::vector<bool>& encoded) {
+    size_t position = 0;
+    Node* tree = read_tree(encoded, position);
+    std::vector<byte> decoded;
+    while (position < encoded.size()) {
+        decoded.push_back(decode_byte(encoded, position, tree));
+    }
+    delete_tree(tree);
+    return decoded;
+}
+
+void Encode(IInputStream& original, IOutputStream& compressed) {
+    byte symbool;
+    std::vector<byte> data;
+    while (original.Read(symbool)) {
+        data.push_back(symbool);
+    }
+
+    std::vector<bool> encoded = encode(data);
+    encoded.push_back(true);
+    size_t i = 0;
+    while (i < encoded.size()) {
+        byte value = 0;
+        for (int j=0; j<8 & i < encoded.size(); ++j, ++i) {
+            value |= encoded[i] << j;
+        }
+        compressed.Write(value);
+    }
+}
+
+void Decode(IInputStream& compressed, IOutputStream& original) {
+    std::vector<bool> encoded;
+    byte symbool;
+    while (compressed.Read(symbool)) {
+        for (int i = 0; i < 8; ++i) {
+            encoded.push_back(symbool & 1);
+            symbool >>= 1;
+        }
+    }
+    auto rit = std::find(encoded.rbegin(), encoded.rend(), true);
+    encoded.erase(rit.base()-1, encoded.end());
+    
+    std::vector<byte> decoded = decode(encoded);
+    for (byte value: decoded) {
+        original.Write(value);
+    }
+}
