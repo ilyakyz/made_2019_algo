@@ -29,7 +29,7 @@ float calc_optimal_len(const std::vector<std::vector<float>>& distances) {
     return result;
 }
 
-float approx_error(size_t N) {
+std::pair<float, float> calc_paths_length(size_t N) {
     std::vector<Point> points = gen_points(N);
     
     std::vector<Edge> edges;
@@ -46,31 +46,41 @@ float approx_error(size_t N) {
     std::vector<int> approx_path = traversal_path(N, edges);
     float approx_len = path_len(approx_path, distances);
     float optimal_len = calc_optimal_len(distances);
-    return (approx_len - optimal_len) / optimal_len;
+    return std::pair<float, float>(approx_len, optimal_len);
 }
 
 void experiment(size_t N) {
     size_t exp_count = 10;
     
-    std::vector<float> errors;
+    std::vector<std::pair<float, float>> paths_length;
     for (size_t i = 0; i < exp_count; ++i) {
-        errors.push_back(approx_error(N));
+        paths_length.push_back(calc_paths_length(N));
     }
+    
     float sum = 0;
     float sum_sq = 0;
-    for (float e: errors) {
-        sum += e;
-        sum_sq += e * e;
+    for (auto& length: paths_length) {
+        float error = (length.first - length.second) / length.second;
+        sum += error;
+        sum_sq += error * error;
     }
     
     float mean = sum / exp_count;
     float std = sqrt(sum_sq / exp_count - mean * mean);
-    std::cout << std::setw(3) << N << ' ' << std::setprecision(3) << std::setw(8) << mean << ' '
-        << std::setw(8) << std << '\n';
+    
+    for (auto& length: paths_length) {
+        std::cout << std::setw(4) << N
+            << std::setprecision(3) << std::setw(12) << length.first << std::setw(12) << length.second
+            << std::setw(12) << mean << std::setw(12) << std << '\n' ;
+    }
 }
 
 
 int main(int argc, const char * argv[]) {
+    std::cout << std::setw(4) << 'N'
+        << std::setw(12) << "approx len" << std::setw(12) << "exact len"
+        << std::setw(12) << "mean error" << std::setw(12) << "error std" << '\n' ;
+    
     for (size_t i = 2; i <= 10; ++i) {
         experiment(i);
     }
